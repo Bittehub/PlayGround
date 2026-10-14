@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PARTY CITY — House Party × GTA</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#070a18; font-family:'Segoe UI',system-ui,Arial,sans-serif; color:#fff; }
+  #app { position:fixed; inset:0; }
+  canvas#scene { display:block; width:100%; height:100%; }
+  .hud { position:absolute; pointer-events:none; z-index:10; }
+  #topLeft { top:14px; left:14px; display:flex; flex-direction:column; gap:8px; }
+  .pill { background:rgba(10,14,34,.72); border:1px solid rgba(255,255,255,.14); backdrop-filter:blur(8px); border-radius:12px; padding:8px 12px; font-size:14px; display:flex; align-items:center; gap:8px; min-width:210px; box-shadow:0 4px 24px rgba(0,0,0,.4); }
+  .pill b { font-size:16px; }
+  #cashPill b { color:#4ade80; } #hypePill b { color:#f472b6; }
+  .bar { flex:1; height:8px; background:rgba(255,255,255,.12); border-radius:99px; overflow:hidden; }
+  .bar > div { height:100%; border-radius:99px; transition:width .3s; }
+  #hypeFill { background:linear-gradient(90deg,#ec4899,#a855f7,#22d3ee); }
+  #energyFill { background:linear-gradient(90deg,#22d3ee,#4ade80); }
+  #stars { color:#facc15; letter-spacing:2px; font-size:16px; }
+  #topRight { top:14px; right:14px; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  #minimap { width:168px; height:168px; border-radius:14px; border:1px solid rgba(255,255,255,.2); background:rgba(5,8,22,.8); box-shadow:0 4px 24px rgba(0,0,0,.5); }
+  #clock { font-size:12px; opacity:.8; background:rgba(10,14,34,.72); padding:4px 10px; border-radius:99px; border:1px solid rgba(255,255,255,.12); }
+  #objective { bottom:86px; left:14px; max-width:380px; background:rgba(10,14,34,.78); border:1px solid rgba(168,85,247,.5); border-radius:12px; padding:10px 14px; border-left:4px solid #a855f7; }
+  #objective .label { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:#c4b5fd; }
+  #objective .text { font-size:14px; margin-top:2px; line-height:1.4; }
+  #prompt { bottom:150px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.75); border:1px solid #22d3ee; padding:8px 16px; border-radius:99px; font-size:14px; display:none; white-space:nowrap; }
+  #prompt .key { display:inline-block; background:#22d3ee; color:#000; font-weight:800; border-radius:6px; padding:1px 8px; margin-right:8px; }
+  #controlsHint { bottom:14px; left:50%; transform:translateX(-50%); font-size:12px; background:rgba(0,0,0,.6); padding:6px 14px; border-radius:99px; border:1px solid rgba(255,255,255,.12); white-space:nowrap; opacity:.9; }
+  #toast { top:16px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .toastMsg { background:linear-gradient(90deg,rgba(168,85,247,.95),rgba(236,72,153,.95)); padding:10px 20px; border-radius:99px; font-size:14px; font-weight:600; box-shadow:0 6px 30px rgba(168,85,247,.5); animation:pop .35s ease-out; }
+  @keyframes pop { from { transform:scale(.8); opacity:0; } to { transform:scale(1); opacity:1; } }
+  #wanted-banner { top:70px; left:50%; transform:translateX(-50%); font-size:13px; color:#fca5a5; background:rgba(127,29,29,.8); border:1px solid #ef4444; padding:4px 14px; border-radius:99px; display:none; }
+  /* Overlays */
+  .overlay { position:absolute; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse at 30% 20%,rgba(168,85,247,.35),transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(236,72,153,.3),transparent 60%),rgba(4,6,16,.88); backdrop-filter:blur(6px); }
+  .card { width:min(640px,92vw); max-height:92vh; overflow:auto; background:rgba(13,17,38,.95); border:1px solid rgba(168,85,247,.4); border-radius:20px; padding:28px 30px; box-shadow:0 20px 80px rgba(0,0,0,.6),0 0 60px rgba(168,85,247,.2); }
+  .card h1 { font-size:42px; line-height:1; letter-spacing:-1px; }
+  .card h1 .pink { color:#f472b6; } .card h1 .cyan { color:#22d3ee; }
+  .sub { color:#c4b5fd; margin-top:6px; font-size:14px; letter-spacing:3px; text-transform:uppercase; }
+  .story { margin:14px 0; font-size:14px; line-height:1.6; color:#d1d5db; }
+  .story b { color:#fff; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+  .ctl { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:8px 10px; font-size:12.5px; }
+  .ctl span { display:inline-block; background:#fff; color:#000; font-weight:800; font-size:11px; border-radius:5px; padding:1px 7px; margin-right:6px; }
+  #playBtn { pointer-events:auto; width:100%; margin-top:10px; font-size:20px; font-weight:800; padding:14px; border:none; border-radius:14px; cursor:pointer; color:#fff; background:linear-gradient(90deg,#a855f7,#ec4899,#f59e0b); box-shadow:0 8px 30px rgba(236,72,153,.5); transition:transform .15s; }
+  #playBtn:hover { transform:scale(1.02); }
+  .fine { margin-top:10px; font-size:11.5px; color:#9ca3af; text-align:center; }
+  /* Dialog */
+  #dialog { bottom:20px; left:50%; transform:translateX(-50%); width:min(560px,92vw); background:rgba(10,14,34,.95); border:1px solid rgba(34,211,238,.5); border-radius:16px; padding:16px 18px; display:none; pointer-events:auto; z-index:30; position:absolute; }
+  #dialog .name { color:#22d3ee; font-weight:800; font-size:14px; }
+  #dialog .line { margin:6px 0 12px; font-size:14.5px; line-height:1.5; }
+  #dialog .choices { display:flex; gap:8px; flex-wrap:wrap; }
+  #dialog button { flex:1; min-width:140px; padding:9px; border-radius:10px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:13px; }
+  #dialog button:hover { background:rgba(34,211,238,.25); }
+  /* Shop */
+  #shop { position:absolute; bottom:20px; right:14px; width:250px; background:rgba(10,14,34,.95); border:1px solid rgba(74,222,128,.5); border-radius:16px; padding:14px; display:none; pointer-events:auto; z-index:30; }
+  #shop h3 { font-size:15px; margin-bottom:8px; color:#4ade80; }
+  #shop button { display:block; width:100%; text-align:left; margin:6px 0; padding:9px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.06); color:#fff; cursor:pointer; font-size:13px; }
+  #shop button:hover { background:rgba(74,222,128,.2); }
+  /* Dance */
+  #danceUI { top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(5,8,22,.92); border:2px solid #ec4899; border-radius:20px; padding:22px 26px; text-align:center; display:none; pointer-events:none; z-index:30; position:absolute; min-width:340px; }
+  #danceArrow { font-size:72px; line-height:1; margin:8px 0; text-shadow:0 0 30px #ec4899; }
+  #danceBar { height:10px; background:rgba(255,255,255,.12); border-radius:99px; overflow:hidden; margin-top:10px; }
+  #danceTimer { height:100%; background:#ec4899; width:100%; }
+  #vignette { position:absolute; inset:0; pointer-events:none; z-index:5; background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%); }
+  #damageFlash { position:absolute; inset:0; pointer-events:none; z-index:6; background:rgba(239,68,68,.35); opacity:0; transition:opacity .2s; }
+  .hidden { display:none !important; }
+  #fpsTag { bottom:14px; right:14px; font-size:11px; opacity:.6; }
+  @media (max-width:700px){ #controlsHint{display:none;} .grid2{grid-template-columns:1fr;} }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div id="vignette"></div>
+  <div id="damageFlash"></div>
+
+  <div class="hud" id="topLeft">
+    <div class="pill" id="cashPill">💵 <b id="cash">$120</b><span style="opacity:.6;font-size:12px">CASH</span></div>
+    <div class="pill" id="hypePill">🎉 <div class="bar"><div id="hypeFill" style="width:10%"></div></div><b id="hypeNum">10</b></div>
+    <div class="pill">⚡ <div class="bar"><div id="energyFill" style="width:100%"></div></div></div>
+    <div class="pill">🚔 <span id="stars">☆☆☆☆☆</span></div>
+  </div>
+  <div class="hud" id="topRight">
+    <canvas id="minimap" width="168" height="168"></canvas>
+    <div id="clock">🌙 11:47 PM · PARTY ST.</div>
+  </div>
+  <div class="hud" id="toast"></div>
+  <div class="hud" id="wanted-banner">🚨 COPS ARE ON YOU — LOSE THEM IN THE HOUSE!</div>
+  <div class="hud" id="objective"><div class="label">★ Objective</div><div class="text" id="objectiveText">Talk to the host Lexi at the DJ booth.</div></div>
+  <div class="hud" id="prompt"><span class="key">E</span><span id="promptText">Talk</span></div>
+  <div class="hud" id="controlsHint">WASD move · Mouse look · <b>E</b> interact · <b>F</b> car · <b>Q</b> dance · <b>Shift</b> run</div>
+  <div class="hud" id="fpsTag"></div>
+
+  <div id="dialog">
+    <div class="name" id="dlgName">Lexi</div>
+    <div class="line" id="dlgLine">...</div>
+    <div class="choices" id="dlgChoices"></div>
+  </div>
+
+  <div id="shop">
+    <h3>🏪 24/7 Snacks</h3>
+    <div style="font-size:12px;opacity:.7;margin-bottom:6px">Clerk: "Yo, what you need?"</div>
+    <button data-item="beer">🍺 6-Pack — $20 <span style="opacity:.6">(quest)</span></button>
+    <button data-item="pizza">🍕 Pizza Slice — $10 (+40 energy)</button>
+    <button data-item="champagne">🍾 Champagne — $50 (+20 hype)</button>
+    <button data-item="close">✕ Leave store</button>
+  </div>
+
+  <div id="danceUI">
+    <div style="letter-spacing:3px;font-size:12px;color:#f9a8d4">● DANCE BATTLE ●</div>
+    <div id="danceArrow">⬆️</div>
+    <div id="danceScore" style="font-size:14px">Hit the arrow keys! 0/8</div>
+    <div id="danceBar"><div id="danceTimer"></div></div>
+    <div style="font-size:11px;opacity:.6;margin-top:6px">Q or ESC to stop</div>
+  </div>
+
+  <div class="overlay" id="menu">
+    <div class="card">
+      <h1>PARTY <span class="pink">CITY</span><br><span style="font-size:22px">HOUSE PARTY <span class="cyan">× GTA</span></span></h1>
+      <div class="sub">open-block party sim · desktop 3D</div>
+      <div class="story">You're new on <b>Party St.</b> Lexi's legendary house party is raging, but the cooler is empty, your pockets are light, and the cops are circling. <b>Run the block like GTA, work the house like House Party:</b> steal cars, dodge heat, grab cash, serve drinks, win the dance floor and become a <b>Party Legend</b>.</div>
+      <div class="grid2">
+        <div class="ctl"><span>W A S D</span> walk / drive</div>
+        <div class="ctl"><span>MOUSE</span> drag or click to look</div>
+        <div class="ctl"><span>E</span> talk · drinks · shop · pickup</div>
+        <div class="ctl"><span>F</span> enter / exit car</div>
+        <div class="ctl"><span>Q</span> dance battle on floor</div>
+        <div class="ctl"><span>SHIFT</span> sprint · <span>SPACE</span> jump / handbrake</div>
+      </div>
+      <div class="story" style="font-size:12.5px">🏆 <b>Win:</b> finish all 5 quests — meet Lexi → beer run → hype 40 → collect 5 cash stashes → survive the raid. ⭐ Wanted? Hide inside the house.</div>
+      <button id="playBtn">Play</button>
+      <div class="fine">Best on desktop · sound on 🔊 · Three.js WebGL · procedural world, no downloads</div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="endOverlay">
+    <div class="card" style="text-align:center">
+      <h1 id="endTitle">👑 PARTY LEGEND!</h1>
+      <div class="sub" id="endSub">the block will remember this night</div>
+      <div class="story" id="endStats"></div>
+      <button id="againBtn" style="pointer-events:auto;width:100%;font-size:17px;font-weight:800;padding:13px;border:none;border-radius:12px;cursor:pointer;color:#fff;background:linear-gradient(90deg,#22d3ee,#a855f7);">Party Again</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============ STATE ============ */
+const S = {
+  playing:false, cash:120, hype:10, energy:100, wanted:0, heat:0,
+  quest:0, hasBeer:false, cashStashes:0, evadeT:0, bustedCount:0,
+  mode:'foot', // foot | car
+  driving:null, dancing:false, dialogOpen:false, shopOpen:false,
+  dead:false, won:false, time:0, partyTime:23.78,
+};
+const QUESTS = [
+  "Talk to the host Lexi at the DJ booth inside the party house.",
+  "Beer run! Drive the purple lowrider to the 24/7 Snacks store (east) and buy the 6-pack ($20).",
+  "Bring the hype! Reach 40 HYPE: dance (Q on the dance floor), talk, serve drinks.",
+  "Cash run! Collect 5 green cash stashes around the block. Careful — stealing cars & speeding raises heat.",
+  "RAID! The cops crashed the party. Survive 45s with heat on, then get back to Lexi!",
+  "Legend status. You did it!"
+];
+
+/* ============ AUDIO (procedural) ============ */
+const AudioSys = {
+  ctx:null, musicGain:null, engineOsc:null, engineGain:null, beatTimer:null, step:0,
+  init(){
+    if(this.ctx) return;
+    try{
+      this.ctx = new (window.AudioContext||window.webkitAudioContext)();
+      this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = .5; this.musicGain.connect(this.ctx.destination);
+      this.engineGain = this.ctx.createGain(); this.engineGain.gain.value = 0; this.engineGain.connect(this.ctx.destination);
+      this.engineOsc = this.ctx.createOscillator(); this.engineOsc.type='sawtooth'; this.engineOsc.frequency.value=60;
+      this.engineOsc.connect(this.engineGain); this.engineOsc.start();
+      this.startBeat();
+    }catch(e){}
+  },
+  blip(f=600,d=.08,type='square',v=.15){
+    if(!this.ctx) return;
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain();
+    o.type=type;o.frequency.value=f;g.gain.value=v;
+    g.gain.exponentialRampToValueAtTime(.001,this.ctx.currentTime+d);
+    o.connect(g);g.connect(this.ctx.destination);o.start();o.stop(this.ctx.currentTime+d);
+  },
+  pickup(){ this.blip(880,.12,'square',.2); setTimeout(()=>this.blip(1320,.15,'square',.2),90); },
+  bad(){ this.blip(180,.25,'sawtooth',.25); },
+  talk(){ this.blip(520,.07,'sine',.15); },
+  startBeat(){
+    if(this.beatTimer) return;
+    const bpm=124, spb=60/bpm/2;
+    let next=0;
+    this.beatTimer=setInterval(()=>{
+      if(!this.ctx||!S.playing||S.dialogOpen) return;
+      if(this.ctx.state==='suspended') this.ctx.resume();
+      const t=this.ctx.currentTime+.05;
+      const s=this.step%16;
+      const g=this.musicGain;
+      const kick=(tt)=>{const o=this.ctx.createOscillator(),gn=this.ctx.createGain();o.type='sine';o.frequency.setValueAtTime(150,tt);o.frequency.exponentialRampToValueAtTime(40,tt+.12);gn.gain.setValueAtTime(.9,tt);gn.gain.exponentialRampToValueAtTime(.001,tt+.14);o.connect(gn);gn.connect(g);o.start(tt);o.stop(tt+.16);};
+      const hat=(tt)=>{const o=this.ctx.createOscillator(),gn=this.ctx.createGain();o.type='square';o.frequency.value=8000;gn.gain.setValueAtTime(.12,tt);gn.gain.exponentialRampToValueAtTime(.001,tt+.04);o.connect(gn);gn.connect(g);o.start(tt);o.stop(tt+.05);};
+      const bass=(tt,f)=>{const o=this.ctx.createOscillator(),gn=this.ctx.createGain();o.type='sawtooth';o.frequency.value=f;gn.gain.setValueAtTime(.22,tt);gn.gain.exponentialRampToValueAtTime(.001,tt+.22);o.connect(gn);gn.connect(g);o.start(tt);o.stop(tt+.24);};
+      if(s%4===0) kick(t);
+      if(s%2===1) hat(t);
+      const scale=[55,55,65.4,49];
+      if(s%4===2) bass(t,scale[(this.step>>4)%4]);
+      this.step++;
+    },140);
+  }
+};
+
+/* ============ THREE SETUP ============ */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.setSize(innerWidth,innerHeight);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1026);
+scene.fog = new THREE.Fog(0x0b1026, 60, 240);
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, .1, 600);
+
+scene.add(new THREE.HemisphereLight(0x8ea2ff, 0x2a1f45, 1.15));
+const moon = new THREE.DirectionalLight(0xbfd0ff, .9); moon.position.set(-40,80,-30); scene.add(moon);
+const partyGlow = new THREE.PointLight(0xec4899, 2.2, 60); partyGlow.position.set(0,8,-62); scene.add(partyGlow);
+const partyGlow2 = new THREE.PointLight(0x22d3ee, 1.6, 50); partyGlow2.position.set(0,6,-72); scene.add(partyGlow2);
+
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+/* ============ HELPERS ============ */
+const M = (c)=> new THREE.MeshLambertMaterial({ color:c });
+const ME = (c,e=1)=> new THREE.MeshBasicMaterial({ color:c });
+function box(w,h,d,c,x=0,y=0,z=0,parent=scene){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c)); m.position.set(x,y,z); parent.add(m); return m; }
+function plane(w,d,c,x=0,y=0,z=0,parent=scene){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),M(c)); m.rotation.x=-Math.PI/2; m.position.set(x,y,z); parent.add(m); return m; }
+function emissiveBox(w,h,d,c,x,y,z,parent=scene){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),ME(c)); m.position.set(x,y,z); parent.add(m); return m; }
+
+/* collisions */
+const solids=[]; // {x1,z1,x2,z2}
+const circles=[]; // {x,z,r}
+function addSolid(cx,cz,w,d){ solids.push({x1:cx-w/2,z1:cz-d/2,x2:cx+w/2,z2:cz+d/2}); }
+function collideCircle(p,r){
+  p.x=Math.max(-116,Math.min(116,p.x)); p.z=Math.max(-116,Math.min(116,p.z));
+  for(const b of solids){
+    const cx=Math.max(b.x1,Math.min(b.x2,p.x)), cz=Math.max(b.z1,Math.min(b.z2,p.z));
+    let dx=p.x-cx, dz=p.z-cz; const d2=dx*dx+dz*dz;
+    if(d2 < r*r){
+      if(d2<1e-6){ p.x=b.x2+r; continue; }
+      const d=Math.sqrt(d2), push=(r-d)/d; p.x+=dx*push; p.z+=dz*push;
+    }
+  }
+  for(const c of circles){
+    const dx=p.x-c.x, dz=p.z-c.z, rr=r+c.r, d2=dx*dx+dz*dz;
+    if(d2<rr*rr&&d2>1e-6){ const d=Math.sqrt(d2),push=(rr-d)/d; p.x+=dx*push; p.z+=dz*push; }
+  }
+}
+
+/* window texture */
+function windowTexture(base, lit){
+  const cv=document.createElement('canvas'); cv.width=128; cv.height=128;
+  const g=cv.getContext('2d'); g.fillStyle=base; g.fillRect(0,0,128,128);
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++){ g.fillStyle=(Math.random()<.55)?lit:'#10142a'; g.fillRect(10+x*30,12+y*30,18,16); }
+  const t=new THREE.CanvasTexture(cv); return t;
+}
+
+/* ============ WORLD ============ */
+// ground
+plane(260,260,0x14240f,0,-0.05,0);
+// roads
+const roadMat=0x1f2430;
+plane(260,10,roadMat,0,0,0); plane(260,10,roadMat,0,0,-80); plane(260,10,roadMat,0,0,80);
+plane(10,260,roadMat,-40,0.01,0); plane(10,260,roadMat,40,0.01,0);
+for(let i=-120;i<=120;i+=6){ const s=box(.6,.02,2,0xfacc15,i,0.03,5.2); const s2=box(.6,.02,2,0xfacc15,i,0.03,-5.2); }
+for(let i=-120;i<=120;i+=6){ const s3=box(2,.02,.6,0xfacc15,45.2,0.03,i); const s4=box(2,.02,.6,0xfacc15,-45.2,0.03,i); }
+// sidewalks
+plane(260,3,0x3a4152,0,0.02,6.5); plane(260,3,0x3a4152,0,0.02,-6.5);
+
+// stars
+{
+  const g=new THREE.BufferGeometry(); const pts=[];
+  for(let i=0;i<400;i++){ pts.push((Math.random()-.5)*500, 60+Math.random()*180, (Math.random()-.5)*500); }
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:.7})));
+  const moonM=new THREE.Mesh(new THREE.SphereGeometry(6,16,16),ME(0xf1f5f9)); moonM.position.set(-90,110,-140); scene.add(moonM);
+}
+
+/* buildings */
+const houses=[];
+function makeHouse(x,z,w,d,h,base,roof){
+  const grp=new THREE.Group(); scene.add(grp);
+  const tex=windowTexture(base==0xf5e6c8?'#e8dcc0':'#c9cede','#fde68a');
+  const body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:0xffffff,map:tex}));
+  body.position.set(x,h/2,z); grp.add(body);
+  const r=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*.72,3,4),M(roof));
+  r.position.set(x,h+1.5,z); r.rotation.y=Math.PI/4; grp.add(r);
+  addSolid(x,z,w,d); houses.push({x,z});
+  return grp;
+}
+makeHouse(-70,-60,16,12,6,0xf5e6c8,0x7c2d12);
+makeHouse(-70,30,16,12,6,0xdbeafe,0x1e3a8a);
+makeHouse(-70,60,14,11,5,0xfce7f3,0x831843);
+makeHouse(70,-60,16,12,6,0xdcfce7,0x14532d);
+makeHouse(70,60,15,12,7,0xfef3c7,0x92400e);
+makeHouse(-20,55,14,10,5,0xe0e7ff,0x312e81);
+makeHouse(25,55,14,10,5,0xfae8ff,0x701a75);
+// apartments
+function makeTower(x,z){
+  const tex=windowTexture('#9aa3b2','#a5f3fc');
+  const b=new THREE.Mesh(new THREE.BoxGeometry(18,26,18),new THREE.MeshLambertMaterial({color:0xffffff,map:tex}));
+  b.position.set(x,13,z); scene.add(b); addSolid(x,z,18,18);
+  box(20,1,20,0x111827,x,.5,z);
+}
+makeTower(-75,-25); makeTower(75,-25);
+// store + garage + police
+function makeStore(){
+  const g=new THREE.Group(); scene.add(g);
+  const b=box(20,7,12,0x14532d,65,3.5,20,g); addSolid(65,20,20,12);
+  const sign=emissiveBox(16,2,1,0x4ade80,65,8,14.2); 
+  const cv=document.createElement('canvas');cv.width=256;cv.height=40;const ctx=cv.getContext('2d');
+  ctx.fillStyle='#052e16';ctx.fillRect(0,0,256,40);ctx.fillStyle='#4ade80';ctx.font='bold 26px Arial';ctx.fillText('24/7 SNACKS',18,30);
+  sign.material=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)});
+  emissiveBox(2,4,.5,0xfef08a,57,2,26.5); emissiveBox(2,4,.5,0xfef08a,73,2,26.5);
+  box(20,.4,8,0x374151,65,.2,30);
+}
+function makeGarage(){
+  box(18,6,12,0x7c2d12,-65,3,20); addSolid(-65,20,18,12);
+  emissiveBox(12,1.5,.6,0xf59e0b,-65,5,26.2);
+}
+function makePolice(){
+  box(18,8,14,0x1e3a8a,-65,4,-25); addSolid(-65,-25,18,14);
+  emissiveBox(10,1.5,.6,0x3b82f6,-65,7,-17.8);
+}
+makeStore(); makeGarage(); makePolice();
+
+/* streetlights + trees + props */
+const lampGlows=[];
+function lamp(x,z){
+  box(.5,7,.5,0x4b5563,x,3.5,z); circles.push({x,z,r:.5});
+  const bulb=emissiveBox(1.4,.5,1.4,0xfde68a,x,7.2,z); lampGlows.push(bulb);
+}
+for(let x=-100;x<=100;x+=25){ lamp(x,9); lamp(x,-9); }
+function tree(x,z){
+  const t=box(.7,2.5,.7,0x5b3a1e,x,1.2,z); circles.push({x,z,r:.8});
+  const c=new THREE.Mesh(new THREE.ConeGeometry(2.4,5,7),M(0x166534)); c.position.set(x,5,z); scene.add(c);
+}
+const treeSpots=[[-25,-25],[25,-25],[-25,25],[25,25],[-55,45],[55,45],[-55,-45],[55,-45],[-15,-50],[15,45],[-90,0],[90,0],[0,60],[0,-30]];
+treeSpots.forEach(([x,z])=>tree(x+Math.random()*2,z));
+
+/* ============ PARTY HOUSE (hero location) ============ */
+const PARTY={x:0,z:-66};
+function partyHouse(){
+  const {x,z}=PARTY;
+  // lot
+  plane(38,30,0x1f3520,x,0.02,z+2);
+  plane(24,20,0x9ca3af,x,0.05,z); // patio slab
+  // pool (east side)
+  box(10.6,.5,7.6,0xe2e8f0,x+13,.25,z+6);
+  const pool=plane(9.6,6.6,0x0ea5e9,x+13,0.52,z+6); pool.material=new THREE.MeshBasicMaterial({color:0x22d3ee});
+  // fence with south gate (4 wide) + collision
+  const fC=0x8b5cf6;
+  const fx=x, fz=z+2;
+  function rail(x1,z1,x2,z2){
+    const len=Math.hypot(x2-x1,z2-z1);
+    const mx=(x1+x2)/2,mz=(z1+z2)/2;
+    box(Math.abs(x2-x1)||.3,.3,Math.abs(z2-z1)||.3,fC,mx,1.5,mz);
+    const n=Math.ceil(len/3);
+    for(let i=0;i<=n;i++){ const px=x1+(x2-x1)*i/n, pz=z1+(z2-z1)*i/n; box(.3,1.6,.3,fC,px,.8,pz); }
+    // collision as thin solid
+    addSolid(mx,mz,Math.abs(x2-x1)||.5,Math.abs(z2-z1)||.5);
+  }
+  rail(x-19,z-13,x+19,z-13);            // north
+  rail(x-19,z+17,x-2.5,z+17);           // south left of gate
+  rail(x+2.5,z+17,x+19,z+17);            // south right of gate
+  rail(x-19,z-13,x-19,z+17);            // west
+  rail(x+19,z-13,x+19,z+17);            // east
+  // house walls (open roof) 18 x 12, door gap south
+  const wx=x, wz=z-4, W=18, D=12, H=4;
+  const wallC=0xf5d0fe;
+  // north wall
+  box(W,H,.6,wallC,wx,H/2,wz-D/2); addSolid(wx,wz-D/2,W,.6);
+  // west / east
+  box(.6,H,D,wallC,wx-W/2,H/2,wz); addSolid(wx-W/2,wz,.6,D);
+  box(.6,H,D,wallC,wx+W/2,H/2,wz); addSolid(wx+W/2,wz,.6,D);
+  // south wall with door gap (two segments)
+  box(7,H,.6,wallC,wx-5.5,H/2,wz+D/2); addSolid(wx-5.5,wz+D/2,7,.6);
+  box(7,H,.6,wallC,wx+5.5,H/2,wz+D/2); addSolid(wx+5.5,wz+D/2,7,.6);
+  // floor wood
+  plane(W-1,D-1,0x92400e,wx,0.07,wz);
+  // neon roof trim
+  emissiveBox(W+.5,.3,.3,0xec4899,wx,H+.2,wz-D/2);
+  emissiveBox(W+.5,.3,.3,0x22d3ee,wx,H+.2,wz+D/2);
+  // DJ booth north
+  box(6,1.4,2,0x111827,wx,0.7,wz-D/2+1.6);
+  emissiveBox(6,.3,2.1,0xa855f7,wx,1.5,wz-D/2+1.6);
+  box(1.6,1,1,0x000000,wx-1.5,1.9,wz-D/2+1.6); box(1.6,1,1,0x000000,wx+1.5,1.9,wz-D/2+1.6);
+  // speakers
+  box(1.6,3,1.6,0x000000,wx-7,1.5,wz-D/2+1.5); box(1.6,3,1.6,0x000000,wx+7,1.5,wz-D/2+1.5);
+  // bar (west inside)
+  box(5,1.2,1.6,0x78350a,wx-5.5,.6,wz+2); emissiveBox(5,.15,1.7,0xf59e0b,wx-5.5,1.25,wz+2);
+  // pizza table (east inside)
+  box(3,1,2,0xe5e7eb,wx+5.5,.5,wz+1);
+  const pizza=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,.15,12),M(0xfbbf24)); pizza.position.set(wx+5.5,1.1,wz+1); scene.add(pizza);
+  // string lights
+  for(let i=0;i<=12;i++){ const px=wx-9+i*1.5;
+    const bulb=emissiveBox(.25,.25,.25,i%2?0xf472b6:0x22d3ee,px,3.6+Math.sin(i*.8)*.3,wz+1); lampGlows.push(bulb);
+  }
+  // PARTY sign
+  const cv=document.createElement('canvas');cv.width=256;cv.height=48;const ctx=cv.getContext('2d');
+  ctx.fillStyle='#4c1d95';ctx.fillRect(0,0,256,48);ctx.fillStyle='#f0abfc';ctx.font='bold 30px Arial';ctx.fillText('★ PARTY ★',52,35);
+  const sign=new THREE.Mesh(new THREE.BoxGeometry(8,1.6,.4),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));
+  sign.position.set(wx,5.4,wz+D/2+.5); scene.add(sign);
+}
+partyHouse();
+
+// dance floor tiles (animated)
+const danceTiles=[];
+{
+  const {x,z}=PARTY; const wz=z-4;
+  for(let ix=0;ix<4;ix++)for(let iz=0;iz<3;iz++){
+    const t=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.4),new THREE.MeshBasicMaterial({color:new THREE.Color().setHSL(Math.random(),1,.55)}));
+    t.rotation.x=-Math.PI/2; t.position.set(x-2.2+ix*1.55,.09,wz-1+iz*1.55); scene.add(t); danceTiles.push(t);
+  }
+}
+
+/* ============ CHARACTERS ============ */
+function makeHuman(shirt,pants,skin=0xf1c27d){
+  const g=new THREE.Group();
+  const legL=box(.32,1,.32,pants,-.2,.5,0,g), legR=box(.32,1,.32,pants,.2,.5,0,g);
+  const torso=box(.8,1,.45,shirt,0,1.5,0,g);
+  const armL=box(.24,.9,.24,shirt,-.55,1.5,0,g), armR=box(.24,.9,.24,shirt,.55,1.5,0,g);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.32,12,12),M(skin)); head.position.set(0,2.3,0); g.add(head);
+  box(.5,.18,.2,0x1f2937,0,2.32,.24,g); // shades
+  scene.add(g);
+  return {g,legL,legR,armL,armR,head,walk:Math.random()*9,baseY:0};
+}
+function animateHuman(h,t,moving,dancing=false){
+  const s=dancing?10:(moving?9:1.5);
+  h.walk+=0.016*s*(moving||dancing?1:.3);
+  const a=Math.sin(h.walk)*(dancing?.9:(moving?.6:.05));
+  h.legL.rotation.x=a; h.legR.rotation.x=-a;
+  if(dancing){ h.armL.rotation.z=2.4+Math.sin(h.walk*1.3)*.6; h.armR.rotation.z=-2.4-Math.sin(h.walk*1.3)*.6; h.armL.rotation.x=Math.cos(h.walk)*.8; h.armR.rotation.x=-Math.cos(h.walk)*.8; h.g.position.y=h.baseY+Math.abs(Math.sin(h.walk))*.25; h.g.rotation.y+=.03; }
+  else { h.armL.rotation.x=-a*.8; h.armR.rotation.x=a*.8; h.armL.rotation.z=.15; h.armR.rotation.z=-.15; h.g.position.y=h.baseY+(moving?Math.abs(Math.sin(h.walk))*.08:Math.sin(t*2)*.02); }
+}
+
+// player
+const player=makeHuman(0x22d3ee,0x1f2937);
+player.g.position.set(0,0,-44);
+const playerPos=new THREE.Vector3(0,0,-44);
+let playerHeading=Math.PI;
+
+// guests
+const guestDefs=[
+  {name:'Lexi (HOST)',shirt:0xec4899,x:-1.5,z:-75.5,line:"You made it! The cooler is DRY though. Take my lowrider, hit the 24/7 store east, and bring back a 6-pack?"},
+  {name:'Marco',shirt:0xf59e0b,x:3,z:-70,line:"This beat is criminal. Q on the dance floor — I will END you in a dance battle."},
+  {name:'Priya',shirt:0x4ade80,x:-5.5,z:-68,line:"I heard cash stashes are hidden all over the block... some GTA stuff went down earlier."},
+  {name:'Dre',shirt:0xa855f7,x:5.5,z:-66,line:"Cops raided last week. If you get stars, hide INSIDE the house till it cools."},
+  {name:'Sofia',shirt:0xef4444,x:8,z:-58,line:"Pool party later! Hydrate though — grab drinks at the bar so your energy stays up."},
+  {name:'Jay',shirt:0x60a5fa,x:-8,z:-58,line:"Nice whip outside? F is enter/exit. Don't hit anyone... unless you want the heat."},
+  {name:'Nia',shirt:0xfacc15,x:0,z:-56,line:"Hype is everything. Dance, chat, bring drinks. Get to 40 and Lexi will trust you with the REAL job."},
+  {name:'Clerk',shirt:0x4ade80,x:65,z:24,line:"Welcome to 24/7!"},
+];
+const guests=guestDefs.map(d=>{
+  const h=makeHuman(d.shirt,0x1f2937); h.g.position.set(d.x,0,d.z); h.home={x:d.x,z:d.z};
+  return {...d,h,dance:Math.random()<.5,talkCD:0};
+});
+// peds
+const peds=[];
+for(let i=0;i<6;i++){
+  const h=makeHuman([0x94a3b8,0x64748b,0xc084fc,0xfda4af][i%4],0x111827, [0xf1c27d,0xe0ac69,0x8d5524,0xffdbac][i%4]);
+  const x=-30+i*12, z=12+(i%2)*4; h.g.position.set(x,0,z);
+  peds.push({h,wp:{x:x+10,z},t:Math.random()*5,down:false,downT:0});
+}
+
+/* ============ CARS ============ */
+function makeCar(color,isPolice=false){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.8,4.4),M(color)); body.position.y=.8; g.add(body);
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.9,.7,2.2),M(0x111827)); cab.position.set(0,1.4,-.2); g.add(cab);
+  const wg=new THREE.CylinderGeometry(.45,.45,.4,10); wg.rotateZ(Math.PI/2);
+  const wm=M(0x0a0a0a);
+  const wheels=[];
+  [[-1.1,1.5],[1.1,1.5],[-1.1,-1.5],[1.1,-1.5]].forEach(([x,z])=>{ const w=new THREE.Mesh(wg,wm); w.position.set(x,.45,z); g.add(w); wheels.push(w); });
+  const hl=ME(isPolice?0x3b82f6:0xfef9c3); const h1=new THREE.Mesh(new THREE.BoxGeometry(.5,.25,.1),hl); h1.position.set(-.7,.85,2.25); g.add(h1);
+  const h2=h1.clone(); h2.position.x=.7; g.add(h2);
+  const tl=new THREE.Mesh(new THREE.BoxGeometry(.5,.25,.1),ME(0xef4444)); tl.position.set(-.7,.85,-2.25); g.add(tl);
+  const tl2=tl.clone(); tl2.position.x=.7; g.add(tl2);
+  if(isPolice){ const bar=new THREE.Mesh(new THREE.BoxGeometry(1.4,.3,.6),ME(0xef4444)); bar.position.set(0,1.9,-.2); g.add(bar); g.userData.bar=bar; }
+  scene.add(g);
+  return {g,wheels,heading:0,speed:0};
+}
+const playerCar=makeCar(0xa855f7); playerCar.g.position.set(-6,0,-48); playerCar.heading=Math.PI/2; playerCar.home={x:-6,z:-48};
+const traffic=[makeCar(0xfacc15),makeCar(0xef4444)];
+traffic[0].wpIdx=0; traffic[1].wpIdx=2;
+const loopWps=[{x:-40,z:-80},{x:40,z:-80},{x:40,z:0},{x:-40,z:0}];
+traffic.forEach((c,i)=>{ c.g.position.set(loopWps[i*2].x,0,loopWps[i*2].z); });
+const copCars=[makeCar(0x111827,true)];
+copCars[0].g.position.set(-65,0,-35); copCars[0].active=false;
+
+/* cash stashes */
+const stashSpots=[[-30,-60],[30,-30],[-55,45],[55,5],[10,30],[-15,70],[80,-55],[-80,-70]];
+const stashes=[];
+stashSpots.slice(0,7).forEach(([x,z],i)=>{
+  const m=emissiveBox(1,1,1,0x4ade80,x,.7,z); stashes.push({m,x,z,taken:false});
+});
+
+/* ============ INPUT ============ */
+const keys=new Set();
+addEventListener('keydown',e=>{
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if(e.repeat) return;
+  keys.add(e.code);
+  if(!S.playing) return;
+  if(e.code==='KeyE') tryInteract();
+  if(e.code==='KeyF') toggleCar();
+  if(e.code==='KeyQ') toggleDance();
+  if(e.code==='Escape'){ closePanels(); }
+  if(dance.active){
+    const map={ArrowUp:'up',KeyW:'up',ArrowLeft:'left',KeyA:'left',ArrowDown:'down',KeyS:'down',ArrowRight:'right',KeyD:'right'};
+    if(map[e.code]) danceHit(map[e.code]);
+  }
+});
+addEventListener('keyup',e=>keys.delete(e.code));
+
+let camYaw=Math.PI, camPitch=.32, dragging=false, px=0, py=0, locked=false;
+canvas.addEventListener('mousedown',e=>{ dragging=true; px=e.clientX; py=e.clientY; });
+addEventListener('mouseup',()=>dragging=false);
+addEventListener('mousemove',e=>{
+  if(document.pointerLockElement===canvas){ camYaw-=e.movementX*.0026; camPitch=Math.max(.05,Math.min(1.1,camPitch+e.movementY*.0022)); }
+  else if(dragging&&S.playing){ camYaw-=(e.clientX-px)*.005; camPitch=Math.max(.05,Math.min(1.1,camPitch+(e.clientY-py)*.004)); px=e.clientX; py=e.clientY; }
+});
+canvas.addEventListener('click',()=>{
+  if(S.playing&&!S.dialogOpen&&document.pointerLockElement!==canvas){ try{canvas.requestPointerLock();}catch(e){} }
+});
+document.addEventListener('pointerlockchange',()=>{ locked=document.pointerLockElement===canvas; });
+
+/* ============ UI helpers ============ */
+const $=id=>document.getElementById(id);
+function toast(msg,ms=2600){
+  const d=document.createElement('div'); d.className='toastMsg'; d.textContent=msg; $('toast').appendChild(d);
+  setTimeout(()=>{ d.style.opacity='0'; d.style.transition='opacity .4s'; setTimeout(()=>d.remove(),400); },ms);
+}
+function setObjective(){ $('objectiveText').textContent=QUESTS[Math.min(S.quest,QUESTS.length-1)]; }
+function addHype(n){ S.hype=Math.max(0,Math.min(100,S.hype+n)); if(n>0&&S.quest===2&&S.hype>=40) completeQuest(); }
+function addWanted(n){ S.heat=Math.max(0,Math.min(100,S.heat+n*22)); S.wanted=Math.min(5,Math.ceil(S.heat/20)); }
+
+/* ============ DIALOG / SHOP / DANCE ============ */
+function openDialog(g){
+  S.dialogOpen=true; AudioSys.talk();
+  $('dialog').style.display='block';
+  $('dlgName').textContent=g.name;
+  $('dlgLine').textContent=g.line + (g.name.startsWith('Lexi')&&S.quest===0 ? ' (Quest updated!)' : '');
+  const ch=$('dlgChoices'); ch.innerHTML='';
+  const opts=[
+    {t:'💬 Compliment',fn:()=>{ addHype(4); toast('❤️ +4 hype — they love you'); AudioSys.pickup(); }},
+    {t:'😂 Joke',fn:()=>{ if(Math.random()<.7){addHype(6);toast('😂 +6 hype! Killer joke');AudioSys.pickup();} else {S.energy=Math.max(0,S.energy-5);toast('💀 Joke bombed...');AudioSys.bad();} }},
+    {t:'🤫 Shady deal',fn:()=>{ S.cash+=25; addWanted(1); toast('💵 +$25 but +heat!'); AudioSys.bad(); }},
+  ];
+  opts.forEach(o=>{
+    const b=document.createElement('button'); b.textContent=o.t;
+    b.onclick=()=>{ o.fn(); if(g.name.startsWith('Lexi')&&S.quest===0) completeQuest(); closePanels(); };
+    ch.appendChild(b);
+  });
+  const x=document.createElement('button'); x.textContent='✕ Bye'; x.onclick=closePanels; ch.appendChild(x);
+}
+function openShop(){ S.shopOpen=true; S.dialogOpen=true; $('shop').style.display='block'; }
+document.querySelectorAll('#shop button').forEach(b=>b.onclick=()=>{
+  const it=b.dataset.item;
+  if(it==='close'){ closePanels(); return; }
+  if(it==='beer'){
+    if(S.cash<20){ toast('Not enough cash!'); AudioSys.bad(); return; }
+    S.cash-=20; S.hasBeer=true; toast('🍺 6-pack acquired! Bring it to Lexi.'); AudioSys.pickup();
+    if(S.quest===1) completeQuest();
+    closePanels();
+  }
+  if(it==='pizza'){ if(S.cash<10){toast('Not enough cash!');return;} S.cash-=10; S.energy=Math.min(100,S.energy+40); toast('🍕 +40 energy'); AudioSys.pickup(); }
+  if(it==='champagne'){ if(S.cash<50){toast('Not enough cash!');return;} S.cash-=50; addHype(20); toast('🍾 +20 hype! Fancy!'); AudioSys.pickup(); }
+});
+function closePanels(){ S.dialogOpen=false; S.shopOpen=false; $('dialog').style.display='none'; $('shop').style.display='none'; if(dance.active) endDance(false); }
+
+const dance={active:false,seq:[],idx:0,time:0,score:0,total:8};
+const ARROWS={up:'⬆️',down:'⬇️',left:'⬅️',right:'➡️'};
+function toggleDance(){
+  if(dance.active){ endDance(false); return; }
+  const dx=playerPos.x-PARTY.x, dz=playerPos.z-(PARTY.z-5);
+  if(Math.hypot(dx,dz)>9){ toast('Get on the dance floor first! 🕺'); return; }
+  dance.active=true; S.dancing=true; dance.idx=0; dance.score=0; dance.time=1.4;
+  dance.seq=Array.from({length:dance.total},()=>['up','down','left','right'][Math.floor(Math.random()*4)]);
+  $('danceUI').style.display='block'; showDanceArrow(); AudioSys.blip(700,.15,'square',.25);
+}
+function showDanceArrow(){ $('danceArrow').textContent=ARROWS[dance.seq[dance.idx]]; $('danceScore').textContent=`Hit the arrow keys! ${dance.score}/${dance.total}`; dance.time=1.4; }
+function danceHit(dir){
+  if(!dance.active) return;
+  if(dir===dance.seq[dance.idx]){ dance.score++; addHype(5); S.cash+=5; S.energy=Math.max(0,S.energy-4); AudioSys.pickup(); dance.idx++;
+    if(dance.idx>=dance.total){ endDance(true); return; } showDanceArrow();
+  } else { S.energy=Math.max(0,S.energy-6); AudioSys.bad(); toast('Miss!'); dance.time=1.4; }
+}
+function endDance(win){
+  dance.active=false; S.dancing=false; $('danceUI').style.display='none';
+  if(win){ addHype(10); toast('🪩 Dance battle WON! +hype'); }
+}
+
+/* ============ INTERACT ============ */
+let currentTarget=null;
+function findInteract(){
+  if(S.mode==='car') return null;
+  const p=playerPos;
+  let best=null,bd=4.6;
+  for(const g of guests){ const d=Math.hypot(p.x-g.h.g.position.x,p.z-g.h.g.position.z); if(d<bd){bd=d;best={type:'talk',g,label:'Talk to '+g.name};} }
+  // bar
+  { const d=Math.hypot(p.x-(PARTY.x-5.5),p.z-(PARTY.z-2)); if(d<3&&d<bd+1){best={type:'bar',label:'Grab a drink (+energy, +hype)'};bd=d;} }
+  // dance floor
+  { const d=Math.hypot(p.x-PARTY.x,p.z-(PARTY.z-5)); if(d<5){best={type:'dance',label:'Dance battle (Q)'};} }
+  // cars
+  for(const c of [playerCar,...traffic]){ const d=Math.hypot(p.x-c.g.position.x,p.z-c.g.position.z); if(d<3.4&&d<bd+1){best={type:'car',c,label:'Drive the car'};bd=d;} }
+  // store clerk distance handles shop via talk instead
+  const dc=Math.hypot(p.x-65,p.z-24); if(dc<4){best={type:'shop',label:'Buy snacks (24/7)'};}
+  return best;
+}
+function tryInteract(){
+  if(S.dialogOpen||dance.active) return;
+  const t=currentTarget; if(!t) return;
+  if(t.type==='talk'){
+    if(t.g.name==='Clerk'){ openShop(); return; }
+    openDialog(t.g);
+  }
+  else if(t.type==='bar'){ S.energy=Math.min(100,S.energy+15); addHype(3); S.cash=Math.max(0,S.cash-2); toast('🍹 +energy +hype'); AudioSys.pickup(); }
+  else if(t.type==='dance'){ toggleDance(); }
+  else if(t.type==='car'){ enterCar(t.c); }
+  else if(t.type==='shop'){ openShop(); }
+}
+function enterCar(c){
+  if(c===playerCar||traffic.includes(c)){
+    S.mode='car'; S.driving=c; toast('🚗 Driving! WASD + Space handbrake, F to exit'); AudioSys.blip(300,.2,'sawtooth',.2);
+    if(traffic.includes(c)){ addWanted(1); toast('🚨 You jacked a ride! +heat'); }
+  }
+}
+function toggleCar(){
+  if(S.mode==='car'&&S.driving){
+    const c=S.driving;
+    playerPos.set(c.g.position.x+2.5,0,c.g.position.z);
+    collideCircle(playerPos,0.6);
+    player.g.position.copy(playerPos);
+    S.mode='foot'; S.driving=null; AudioSys.blip(400,.1);
+  } else {
+    const t=currentTarget; if(t&&t.type==='car') enterCar(t.c);
+  }
+}
+function completeQuest(){
+  S.quest++;
+  AudioSys.pickup();
+  toast('✅ Quest complete! → '+QUESTS[Math.min(S.quest,QUESTS.length-1)].slice(0,60)+'…',3200);
+  setObjective();
+  if(S.quest===4){ S.heat=45; S.wanted=3; toast('🚨 RAID! Survive 45 seconds!',3000); S.evadeT=45; }
+  if(S.quest>=5&&!S.won){ win(); }
+}
+function win(){
+  S.won=true; S.playing=false;
+  try{document.exitPointerLock&&document.exitPointerLock();}catch(e){}
+  $('endTitle').textContent='👑 PARTY LEGEND!';
+  $('endSub').textContent='hype '+Math.round(S.hype)+' · $'+S.cash+' · busted ×'+S.bustedCount;
+  $('endStats').innerHTML=`You ran the block <b>AND</b> the house. Lexi crowns you on the decks while the crowd chants your name.<br><br>💵 $${S.cash} &nbsp; 🎉 ${Math.round(S.hype)} hype &nbsp; ⭐ wanted peak survived`;
+  $('endOverlay').classList.remove('hidden');
+  AudioSys.blip(880,.4,'square',.3);
+}
+function busted(){
+  S.bustedCount++;
+  const lost=Math.floor(S.cash*.3); S.cash-=lost;
+  S.heat=0; S.wanted=0; S.evadeT=0;
+  copCars.forEach(c=>{c.active=false; c.g.position.set(-65,0,-35);});
+  if(S.mode==='car'){ S.mode='foot'; S.driving=null; }
+  playerPos.set(0,0,-44); player.g.position.copy(playerPos);
+  S.energy=Math.max(30,S.energy-20);
+  const f=$('damageFlash'); f.style.opacity='1'; setTimeout(()=>f.style.opacity='0',400);
+  toast(`🚔 BUSTED! Lost $${lost}. Lay low.`,3000); AudioSys.bad();
+  if(S.quest===4){ S.evadeT=45; } // retry raid
+}
+
+/* ============ QUEST LOGIC ============ */
+function updateQuests(dt){
+  if(S.quest===2&&S.hype>=40) completeQuest();
+  if(S.quest===3&&S.cashStashes>=5){ completeQuest(); }
+  if(S.quest===4){
+    if(S.evadeT>0){
+      S.evadeT-=dt;
+      S.heat=Math.max(45,S.heat); S.wanted=Math.max(2,S.wanted);
+      if(S.evadeT<=0){ S.heat=0; S.wanted=0; copCars.forEach(c=>c.active=false); completeQuest(); toast('You lost the cops! Get back to Lexi (E to talk).',3000); }
+    } else {
+      // waiting to return to lexi — handled via talk? auto-complete near lexi
+      const d=Math.hypot(playerPos.x-(PARTY.x-1.5),playerPos.z-(PARTY.z-9.5));
+      // quest 4->5 happens on timer; quest 5 needs talk to Lexi:
+      if(S.quest===4&&S.evadeT<=0){ /* actually quest already advanced; this is quest 5 */ }
+    }
+  }
+  if(S.quest===5){
+    const d=Math.hypot(playerPos.x-(PARTY.x-1.5),playerPos.z-(PARTY.z-9.5));
+    // auto prompt; completing requires talking to Lexi — openDialog handles quest 0 only, so:
+    // if near lexi show hint; E opens dialog which for quest 5 completes:
+  }
+}
+// patch: Lexi talk completes quest 5 too
+const _openDialog=openDialog;
+
+/* ============ MINIMAP ============ */
+const mm=$('minimap').getContext('2d');
+function drawMinimap(){
+  const W=168,cx=84,cz=84,scale=168/260;
+  mm.fillStyle='#0a0f24'; mm.fillRect(0,0,W,W);
+  mm.fillStyle='#232a3d';
+  mm.fillRect(0,cz-5*scale,W,10*scale); mm.fillRect(cx-5*scale,0,10*scale,W);
+  mm.fillStyle='#ec4899'; mm.fillRect(cx+(PARTY.x)*scale-4,cz+(PARTY.z)*scale-4,8,8);
+  mm.fillStyle='#4ade80'; mm.fillRect(cx+65*scale-3,cz+20*scale-3,6,6);
+  mm.fillStyle='#4ade80';
+  for(const s of stashes){ if(!s.taken){ mm.fillRect(cx+s.x*scale-2,cz+s.z*scale-2,4,4); } }
+  mm.fillStyle='#facc15';
+  for(const c of traffic){ mm.beginPath(); mm.arc(cx+c.g.position.x*scale,cz+c.g.position.z*scale,3,0,9); mm.fill(); }
+  mm.fillStyle='#ef4444';
+  for(const c of copCars){ if(c.active){ mm.beginPath(); mm.arc(cx+c.g.position.x*scale,cz+c.g.position.z*scale,3.5,0,9); mm.fill(); } }
+  // player
+  const px2=cx+playerPos.x*scale, pz2=cz+playerPos.z*scale;
+  mm.save(); mm.translate(px2,pz2); mm.rotate(S.mode==='car'&&S.driving?-S.driving.heading:Math.atan2(playerPos.x-player.g.position.x||0,1));
+  mm.fillStyle='#22d3ee'; mm.beginPath(); mm.moveTo(0,-6); mm.lineTo(4,4); mm.lineTo(-4,4); mm.closePath(); mm.fill(); mm.restore();
+}
+
+/* ============ GAME LOOP ============ */
+const clock=new THREE.Clock();
+let fpsAcc=0,fpsN=0,fpsT=0, mmT=0;
+const tmpV=new THREE.Vector3();
+
+function updatePlayer(dt){
+  let mx=0,mz=0;
+  const f={x:Math.sin(camYaw),z:Math.cos(camYaw)};
+  const r={x:-f.z,z:f.x};
+  let ix=0,iz=0;
+  if(keys.has('KeyW')||keys.has('ArrowUp')){ix+=f.x;iz+=f.z;}
+  if(keys.has('KeyS')||keys.has('ArrowDown')){ix-=f.x;iz-=f.z;}
+  if(keys.has('KeyD')||keys.has('ArrowRight')){ix+=r.x;iz+=r.z;}
+  if(keys.has('KeyA')||keys.has('ArrowLeft')){ix-=r.x;iz-=r.z;}
+  const moving=(ix!==0||iz!==0);
+  const run=keys.has('ShiftLeft')||keys.has('ShiftRight');
+  const speed=(run?9.5:5.5)*(S.energy<=0?0.5:1);
+  if(S.dancing){ /* locked while dance UI? allow small groove */ }
+  else if(moving){
+    const l=Math.hypot(ix,iz); ix/=l; iz/=l;
+    playerPos.x+=ix*speed*dt; playerPos.z+=iz*speed*dt;
+    collideCircle(playerPos,0.6);
+    playerHeading=Math.atan2(ix,iz);
+    if(run) S.energy=Math.max(0,S.energy-dt*4);
+  }
+  if(keys.has('Space')&&S.mode==='foot'){
+    // jump visual
+    player.baseY=Math.min(1,player.baseY+dt*6);
+  } else if(player.baseY>0){ player.baseY=Math.max(0,player.baseY-dt*5); }
+  player.g.position.set(playerPos.x,player.baseY,playerPos.z);
+  player.g.rotation.y=playerHeading;
+  animateHuman(player,clock.elapsedTime,moving,S.dancing);
+  // energy regen idle
+  if(!moving) S.energy=Math.min(100,S.energy+dt*2);
+  // cash stash pickup
+  for(const s of stashes){
+    if(!s.taken&&Math.hypot(playerPos.x-s.x,playerPos.z-s.z)<2){
+      s.taken=true; s.m.visible=false; S.cash+=40; S.cashStashes++;
+      toast('💵 +$40 stash! ('+Math.min(S.cashStashes,5)+'/5 for quest)'); AudioSys.pickup();
+    }
+  }
+  // pool slow + fun
+  if(Math.abs(playerPos.x-(PARTY.x+13))<5&&Math.abs(playerPos.z-(PARTY.z+6))<3.5){ S.energy=Math.min(100,S.energy+dt*10); }
+}
+
+function updateDrive(dt){
+  const c=S.driving; if(!c) return;
+  let th=0, st=0;
+  if(keys.has('KeyW')||keys.has('ArrowUp')) th+=1;
+  if(keys.has('KeyS')||keys.has('ArrowDown')) th-=1;
+  if(keys.has('KeyA')||keys.has('ArrowLeft')) st-=1;
+  if(keys.has('KeyD')||keys.has('ArrowRight')) st+=1;
+  const hand=keys.has('Space');
+  const maxF=26,maxR=9;
+  if(th>0) c.speed=Math.min(maxF,c.speed+16*dt);
+  else if(th<0){ if(c.speed>1) c.speed=Math.max(0,c.speed-30*dt); else c.speed=Math.max(-maxR,c.speed-12*dt); }
+  else c.speed-=Math.sign(c.speed)*Math.min(Math.abs(c.speed),(hand?30:6)*dt);
+  c.speed=Math.max(-maxR,Math.min(maxF,c.speed));
+  if(Math.abs(c.speed)>.5) c.heading-=st*Math.min(1,Math.abs(c.speed)/8)*1.9*dt*Math.sign(c.speed);
+  const nx=c.g.position.x+Math.sin(c.heading)*c.speed*dt;
+  const nz=c.g.position.z+Math.cos(c.heading)*c.speed*dt;
+  const before={x:c.g.position.x,z:c.g.position.z};
+  c.g.position.x=nx; c.g.position.z=nz;
+  const p={x:c.g.position.x,z:c.g.position.z}; collideCircle(p,1.8);
+  const hit=Math.hypot(p.x-nx,p.z-nz)>.01;
+  c.g.position.x=p.x; c.g.position.z=p.z;
+  if(hit){ if(Math.abs(c.speed)>12){ addWanted(1); toast('💥 Crash! +heat'); AudioSys.bad(); } c.speed*=.3; }
+  c.g.rotation.y=c.heading;
+  c.wheels.forEach(w=>w.rotation.x+=c.speed*dt*2);
+  // speed near cop raises heat slowly
+  if(Math.abs(c.speed)>20) S.heat=Math.min(100,S.heat+dt*2), S.wanted=Math.min(5,Math.ceil(S.heat/20));
+  // run over peds?
+  for(const pd of peds){
+    if(!pd.down&&Math.hypot(pd.h.g.position.x-c.g.position.x,pd.h.g.position.z-c.g.position.z)<2.4&&Math.abs(c.speed)>4){
+      pd.down=true; pd.downT=4; addWanted(1); S.cash+=15; toast('😱 Hit & run! +$15, +heat!'); AudioSys.bad();
+    }
+  }
+  // engine sound
+  if(AudioSys.engineGain) { AudioSys.engineGain.gain.value=.06; AudioSys.engineOsc.frequency.value=50+Math.abs(c.speed)*6; }
+  // sync player pos to car (for minimap/camera)
+  playerPos.set(c.g.position.x,0,c.g.position.z);
+  player.g.position.set(c.g.position.x,-5,c.g.position.z); // hide
+  // heat decay while driving fast? no
+}
+
+function updateTraffic(dt){
+  for(const c of traffic){
+    const wp=loopWps[c.wpIdx];
+    const dx=wp.x-c.g.position.x, dz=wp.z-c.g.position.z, d=Math.hypot(dx,dz);
+    if(d<3){ c.wpIdx=(c.wpIdx+1)%loopWps.length; continue; }
+    const want=Math.atan2(dx,dz);
+    let diff=((want-c.heading+Math.PI*3)%(Math.PI*2))-Math.PI;
+    c.heading+=Math.max(-1.5*dt,Math.min(1.5*dt,diff));
+    c.speed+=((10)-c.speed)*dt;
+    c.g.position.x+=Math.sin(c.heading)*c.speed*dt;
+    c.g.position.z+=Math.cos(c.heading)*c.speed*dt;
+    c.g.rotation.y=c.heading;
+    c.wheels.forEach(w=>w.rotation.x+=c.speed*dt*2);
+  }
+}
+let bustT=0;
+function updateCops(dt){
+  const wantActive=S.wanted>0||S.quest===4&&S.evadeT>0;
+  copCars.forEach((c,i)=>{
+    c.active=wantActive&&i<Math.min(2,Math.max(1,S.wanted));
+    if(!c.active){ return; }
+    const tx=playerPos.x, tz=playerPos.z;
+    const dx=tx-c.g.position.x, dz=tz-c.g.position.z, d=Math.hypot(dx,dz);
+    const want=Math.atan2(dx,dz);
+    let diff=((want-c.heading+Math.PI*3)%(Math.PI*2))-Math.PI;
+    c.heading+=Math.max(-2.2*dt,Math.min(2.2*dt,diff));
+    const sp=S.wanted>=3?17:13;
+    c.speed+=(sp-c.speed)*dt*1.5;
+    c.g.position.x+=Math.sin(c.heading)*c.speed*dt;
+    c.g.position.z+=Math.cos(c.heading)*c.speed*dt;
+    const p={x:c.g.position.x,z:c.g.position.z}; collideCircle(p,1.8); c.g.position.x=p.x; c.g.position.z=p.z;
+    c.g.rotation.y=c.heading;
+    if(c.g.userData.bar) c.g.userData.bar.material.color.setHex(Math.floor(clock.elapsedTime*4)%2?0xef4444:0x3b82f6);
+    if(d<4.5){
+      bustT+=dt;
+      if(bustT>2.2){ bustT=0; busted(); }
+    } else bustT=Math.max(0,bustT-dt);
+  });
+  // heat decay when hidden inside house
+  const insideHouse=Math.abs(playerPos.x-PARTY.x)<9&&Math.abs(playerPos.z-(PARTY.z-4))<6;
+  if(insideHouse&&S.quest!==4){ S.heat=Math.max(0,S.heat-dt*10); S.wanted=Math.ceil(S.heat/20); }
+  else if(S.wanted>0&&S.quest!==4){ S.heat=Math.max(0,S.heat-dt*1.2); S.wanted=Math.ceil(S.heat/20); }
+}
+
+function updateNPCs(dt){
+  const t=clock.elapsedTime;
+  for(const g of guests){
+    const p=g.h.g.position;
+    const nearDancer=Math.hypot(playerPos.x-p.x,playerPos.z-p.z)<6;
+    const dancing=g.dance|| (Math.hypot(p.x-PARTY.x,p.z-(PARTY.z-5))<4);
+    // idle sway / wander for yard guests
+    if(!dancing&&g.name!=='Lexi (HOST)'&&g.name!=='Clerk'){
+      const wx=g.x+Math.sin(t*.3+g.x)*2, wz=g.z+Math.cos(t*.25+g.z)*2;
+      const dx=wx-p.x,dz=wz-p.z;
+      if(Math.hypot(dx,dz)>.3){ p.x+=dx*dt*.5; p.z+=dz*dt*.5; g.h.g.rotation.y=Math.atan2(dx,dz); animateHuman(g.h,t,true); }
+      else animateHuman(g.h,t,false);
+    } else { animateHuman(g.h,t,false,true); }
+    g.talkCD=Math.max(0,g.talkCD-dt);
+  }
+  // lexi behind booth faces south
+  // peds wander
+  for(const pd of peds){
+    if(pd.down){ pd.downT-=dt; pd.h.g.rotation.x=-Math.PI/2.2; if(pd.downT<=0){pd.down=false; pd.h.g.rotation.x=0;} continue; }
+    pd.t-=dt;
+    if(pd.t<=0){ pd.t=4+Math.random()*4; pd.wp={x:-40+Math.random()*80,z:12+(Math.random()<.5?-4:4)}; }
+    const p=pd.h.g.position, dx=pd.wp.x-p.x, dz=pd.wp.z-p.z, d=Math.hypot(dx,dz);
+    if(d>1){ p.x+=dx/d*2*dt; p.z+=dz/d*2*dt; pd.h.g.rotation.y=Math.atan2(dx,dz); animateHuman(pd.h,t,true); }
+    else animateHuman(pd.h,t,false);
+  }
+}
+
+function updateCamera(dt){
+  let target, dist=9;
+  if(S.mode==='car'&&S.driving){ target=S.driving.g.position; dist=11; }
+  else target=player.g.position;
+  // menu cinematic
+  if(!S.playing){
+    const t=clock.elapsedTime*.12;
+    camera.position.set(PARTY.x+Math.sin(t)*34, 16, PARTY.z+18+Math.cos(t)*34);
+    camera.lookAt(PARTY.x,1,PARTY.z-2);
+    return;
+  }
+  const cx=target.x-Math.sin(camYaw)*Math.cos(camPitch)*dist;
+  const cz=target.z-Math.cos(camYaw)*Math.cos(camPitch)*dist;
+  const cy=target.y+2+Math.sin(camPitch)*dist;
+  camera.position.lerp(tmpV.set(cx,cy,cz),1-Math.pow(.0001,dt));
+  camera.lookAt(target.x,target.y+1.8,target.z);
+}
+
+function updateHUD(){
+  $('cash').textContent='$'+S.cash;
+  $('hypeNum').textContent=Math.round(S.hype);
+  $('hypeFill').style.width=S.hype+'%';
+  $('energyFill').style.width=S.energy+'%';
+  $('stars').textContent='★'.repeat(S.wanted)+'☆'.repeat(5-S.wanted);
+  $('wanted-banner').style.display=S.wanted>0?'block':'none';
+  if(S.quest===4&&S.evadeT>0) $('objectiveText').textContent=`RAID! Survive ${Math.ceil(S.evadeT)}s — then return to Lexi. (Hide = slower, house = safe after)`;
+  // prompt
+  currentTarget = S.playing&&!S.dialogOpen&&!dance.active ? findInteract() : (S.mode==='car'?null:currentTarget);
+  if(currentTarget&&S.mode!=='car'){ $('prompt').style.display='block'; $('promptText').textContent=currentTarget.label+'  —  E'; }
+  else if(S.mode==='car'){ $('prompt').style.display='block'; $('promptText').textContent='Exit car  —  F'; }
+  else $('prompt').style.display='none';
+  if(dance.active){ $('danceTimer').style.width=(dance.time/1.4*100)+'%'; }
+}
+
+/* dance timer */
+setInterval(()=>{ if(dance.active){ dance.time-=.1; if(dance.time<=0){ S.energy=Math.max(0,S.energy-6); AudioSys.bad(); dance.idx++; if(dance.idx>=dance.total) endDance(dance.score>=5); else showDanceArrow(); } } },100);
+
+/* ============ MAIN ============ */
+setObjective();
+function loop(){
+  requestAnimationFrame(loop);
+  const dt=Math.min(.05,clock.getDelta());
+  const t=clock.elapsedTime;
+  // animate world
+  danceTiles.forEach((m,i)=>{ m.material.color.setHSL((t*.3+i*.13)%1,1,.55); });
+  lampGlows.forEach((b,i)=>{ b.material.color.setHSL((t*.1+i*.05)%1,1,.6); });
+  partyGlow.intensity=2+Math.sin(t*6)*.8; partyGlow2.intensity=1.5+Math.cos(t*5)*.6;
+  stashes.forEach((s,i)=>{ if(!s.taken){ s.m.rotation.y+=dt*2; s.m.position.y=.7+Math.sin(t*3+i)*.2; } });
+  if(S.playing&&!S.won){
+    S.time+=dt;
+    if(S.mode==='car') updateDrive(dt); else { updatePlayer(dt); if(AudioSys.engineGain) AudioSys.engineGain.gain.value=0; }
+    updateTraffic(dt); updateCops(dt); updateNPCs(dt); updateQuests(dt);
+    // Lexi quest-5 completion via proximity + auto? require talk: patch dialog close
+  } else {
+    updateTraffic(dt*0); updateNPCs(dt);
+    traffic.forEach(()=>{});
+    // idle menu traffic
+    const dtt=dt*(S.playing?1:1);
+    // move traffic even in menu
+    for(const c of traffic){ const wp=loopWps[c.wpIdx]; const dx=wp.x-c.g.position.x,dz=wp.z-c.g.position.z,d=Math.hypot(dx,dz); if(d<3){c.wpIdx=(c.wpIdx+1)%4;continue;} const want=Math.atan2(dx,dz); let diff=((want-c.heading+Math.PI*3)%(Math.PI*2))-Math.PI; c.heading+=Math.max(-1.5*dtt,Math.min(1.5*dtt,diff)); c.g.position.x+=Math.sin(c.heading)*8*dtt; c.g.position.z+=Math.cos(c.heading)*8*dtt; c.g.rotation.y=c.heading; }
+  }
+  updateCamera(dt);
+  updateHUD();
+  mmT+=dt; if(mmT>.12){ mmT=0; drawMinimap(); }
+  // fps
+  fpsAcc+=dt; fpsN++; if((fpsT+=dt)>.5){ $('fpsTag').textContent=Math.round(fpsN/fpsAcc)+' fps'; fpsAcc=0;fpsN=0;fpsT=0; }
+  renderer.render(scene,camera);
+}
+loop();
+
+/* ============ START ============ */
+$('playBtn').addEventListener('click',()=>{
+  AudioSys.init();
+  if(AudioSys.ctx&&AudioSys.ctx.state==='suspended') AudioSys.ctx.resume();
+  S.playing=true;
+  $('menu').classList.add('hidden');
+  toast('🎉 Welcome to Party St.! Go see Lexi (pink marker).',3000);
+  setObjective();
+});
+// Lexi quest-5: wrap talk completion
+const origTryInteract=tryInteract;
+// (quest 5 completes when talking to Lexi after raid)
+setInterval(()=>{
+  // patch dialog Lexi for quest 5: if dialog open with Lexi and quest===5 handled on choice; also auto-check:
+},1000);
+// override openDialog Lexi quest5 behavior via mutation of choices:
+const _openDialog2=openDialog;
+openDialog=function(g){
+  _openDialog2(g);
+  if(g.name.startsWith('Lexi')&&S.quest===5){
+    const ch=$('dlgChoices');
+    const b=document.createElement('button'); b.textContent='🏆 We survived the raid!';
+    b.style.borderColor='#4ade80';
+    b.onclick=()=>{ closePanels(); completeQuest(); toast('👑 PARTY LEGEND!',3000); };
+    ch.prepend(b);
+  }
+  if(g.name.startsWith('Lexi')&&S.quest===1&&S.hasBeer){
+    const ch=$('dlgChoices');
+    const b=document.createElement('button'); b.textContent='🍺 Hand over the 6-pack';
+    b.style.borderColor='#4ade80';
+    b.onclick=()=>{ S.hasBeer=false; addHype(15); closePanels(); completeQuest(); toast('Lexi: "You absolute legend! +15 hype"',3000); };
+    ch.prepend(b);
+  }
+};
+$('againBtn').addEventListener('click',()=>location.reload());
+</script>
+</body>
+</html>
